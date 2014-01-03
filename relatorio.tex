@@ -1,0 +1,188 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[brazilian]{babel}
+\usepackage{times}
+\usepackage{amsmath}
+
+\title{Previsão do desempenho de usuários de Sistemas Tutores Interativos} 
+
+\author{Lucas Mendes Marques Gonçalves, Breno F. Franco\\
+  Universidade de São Paulo\\
+  Departamento de Ciência da Computação\\
+  Instituto de Matemática e Estatística
+}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+
+\section{Introdução}
+   \subsection{O Problema}
+
+   Sistemas Tutores Inteligentes são listas de exercícios virtuais, com as quais um aluno pode interagir a fim de melhorar sua prática em alguma disciplina. Nessas listas, há um guia dos passos a serem tomados para a resolução do exercício. Quando o aluno completa um passo, o sistema o corrige e, sabendo de seu desempenho naquele passo, sugere novos passos que o ajudarão a aprender o conteúdo planejado pelos professores. Entretanto, podem ser rígidos demais, exigindo que os exercícios sejam feitos em passos triviais, nos quais erros não determinam falta de aprendizado conceitual, mas apenas falhas pontuais.
+
+   \subsection{Objetivo}
+      O objetivo do trabalho, bem como o do KDD Cup, é prever o desempenho futuro de alunos, sabendo parte do desempenho passado de alguns deles.
+
+      Algumas aplicações possíveis da previsão de desempenho são:
+          
+      Sistema de avaliação/estimação de competência
+
+         As estimativas de desempenho, se confiáveis, poderiam vir a substituir exames bimestrais/trimestrais, poupando o tempo de professores e alunos ao reduzir a necessidade de avaliações formais/pontuais.
+
+      Refinamento do sistema de recomendação
+         
+         Tal refinamento podem levar a melhora do desempenho de aprendizagem de diversos alunos, ao permitir melhor fixação de conhecimentos/habilidades em que apresentem defasagem, com uma abordagem altamente individualizada.
+
+      Compreender melhor o processo de aprendizagem
+
+         Correlações fortes entre os dados apresentados podem vir a influenciar a forma como é entendido o processo de aprendizado de habilidades especícificas.
+
+   \subsection{KDD Cup 2010}
+
+      Em 2010, ocorreu uma competição da conferência "Knowledge Discovery in Databases" \ em que o desafio era exatamente esse.
+      \\~\\
+      Nosso trabalho é baseado em um trabalho dessa competição. Como na competição, tentamos desenvolver um algoritmo para estimar o desempenho dos alunos em alguns problemas, conhecendo seu desempenho em outros.
+
+
+
+   \subsection{Formato dos dados}
+     Os problemas são subdivididos em passos. As entradas do banco de dados disponível para a competição eram as seguintes:
+     
+     \begin{itemize}
+     \item Timestamp de início do passo
+     \item Timestamp de término do passo
+     \item Capítulo, subcapítulo e problema a que pertence o passo realizado
+     \item Knowledge Components: Habilidades e fatos que se julga necessários para realizar o problema
+     \item Correct First Attempt: O aluno resolveu esse passo sem dica nem erro ?
+     \end{itemize}
+     
+     O objetivo será estimar Correct First Attempt para registros inéditos de passos (inclusive, talvez, feitos por alunos não fornecidos na base de treinamento)
+
+
+   \subsection{Dificuldades Especiais}
+     \begin{itemize}
+     \item Alguns passos foram feitos por só um aluno (ou por o problema ser mais flexível, ou por ser um problema com parâmetros aleatórios)
+     \item Alguns dados faltando (em particular, tempos)
+     \item O método de amostragem dos problemas de teste faz com que haja poucas amostras de alguns dos passos
+     \end{itemize}
+
+
+   \begin{section}{Solução Proposta}
+   \subsection{Descrição do algoritmo}
+   \subsubsection{Uma variação do KNN}
+     Os competidores da KDD cup 2010 submeteram papers descrevendo suas soluções. Estudamos algumas delas, e informados por essas soluções, escolhemos implementar um KNN, semelhante ao proposto pelo terceiro colocado.\\~\\
+
+     A ideia é, dado um aluno, usar o K alunos mais próximos dele para realizar a previsão do seu desempenho.\\~\\
+
+     Essa ideia é interessante por, além das previsões, fornecer uma medida de proximidade entre os estudantes. Isso pode ser útil para outras tarefas (em particular, para auxiliar a personalização do ensino)
+
+
+   \subsubsection{Uma variação do KNN}
+     O algoritmo implementado faz os seguintes passos:
+     \begin{itemize}
+     \item[1)] Calcula correlações entre os vetores de problemas de cada aluno
+     \item[2)] Realiza correções nessas correlações
+     \item[3)] Usa as correlações para:
+        \begin{itemize}
+        \item estabelecer os estudantes mais próximos
+        \item ponderar suas relevâncias
+        \end{itemize}
+     \item[4)] Aproxima o resultado da média (considerando as relevâncias utilizadas em 3)\\~\\
+     \end{itemize}
+     
+     O algoritmo usa vários parâmetros para permitir calibrar a importância relativa entre os valores calculados (como veremos em breve)
+
+
+   \subsubsection{Correlações}
+   O primeiro passo do algoritmo é, para cada par de alunos $(a_i,a_j)$ calcular a correlação entre os exercícios que $a_i$ acertou e os que $a_j$ acertou.\\~\\
+
+   O que fazemos é criar dois vetores $X^i$ e $X^j$ de variáveis indicadoras. Esses dois vetores são indexados pelos problemas que ambos $a_i$ e $a_j$ fizeram. Cada posição desse vetor $X^i$ indica se $a_i$ acertou aquele passo ou errou \\~\\
+
+   Sendo $\mu^i$ a média de $X^i$ e $\mu^j$ a média de $X^j$, o coeficiente de correlação entre $X_i$ e $X_j$ é
+
+   \[ \rho_{ij} = \frac{\sum(X^i_k - \mu^i)(X^j_k - \mu^j)}{\sqrt{\sum(X^i_k - \mu^i)^2}*\sqrt{\sum(X^j_k - \mu^j)^2}}  \]
+
+
+   \subsubsection{Corrigindo a correlação}
+
+   Para usarmos $\rho_{ij}$, precisaremos fazer dois ajustes.\\~\\
+
+   Primeiramente, fazemos um ajuste para reduzir as correlações que foram baseadas em poucos problemas:$\rho^{'}_{ij}=\rho_{ij}\cdot\frac{U}{U+\alpha}$. Nessa expressão $U_{ij}$ é a quantidade de passos em comum entre $a_i$ e $a_j$, e $\alpha$ é um parâmetro livre do algoritmo, a ser usado para melhorar o ajuste.
+
+   Depois, mapeamos as correlações usando a função logística, e dois parâmetros de ajuste: $\rho^{''}_{ij}=\text{logit}(\rho^{'}_{ij}\cdot\delta + \gamma)$
+
+
+   \subsubsection{Estimando o CFA de um passo}
+
+      Dado um passo p, para estimar o CFA do aluno $a_i$, tomaremos os K alunos mais próximos dele (medidos pela distância $\rho_{ij}$) e ponderaremos suas respostas para o item.\\~\\
+
+      Note que é possível que poucos desses alunos próximos tenha feito o passo (ou mesmo nenhum). Assim, incluímos na ponderação a média global de acertos desse passo. \\~\\
+
+      Nossa estimativa do CFA para o aluno $a_i$ será $\frac{\sum \rho^{''}_{ij}*CFA_p(j)+\beta * \mu_p}{sum \rho^{''}_{ij} +\beta}$
+
+
+      \begin{subsection}{Resultados}
+         \subsubsection{Avaliando os resultados}
+
+         Como na competição, avaliamos nossos resultados usando RMSE (Root Mean Square Error).\\~\\
+
+         Ou seja, sendo $P$ o conjunto dos passos que tentamos prever, o erro será $\sqrt{\frac{\sum_{p \in P} (y_p - y^{'}_p)^2}{|P|}}$, onde $y_p$ é o valor real para o CFA daquele passo, e $y'_p$, a nossa previsão desse valor
+
+         \subsubsection{Resultado}
+
+         Com 2521 testes, nosso algoritmo produz um RMSE de 0.3565 \\~\\
+
+         Se, ao invés desse algoritmo, simplesmente tomarmos a média de desempenho dos alunos no passo específico como estimador do CFA, teríamos um RMSE de 0.3582
+
+
+         \subsubsection{Possível melhoria}
+
+         O algoritmo parece melhorar quando aumentamos o número de alunos da amostra. Essa melhora parece ser maior do que a melhora do algoritmo que simplesmente retorna a média. \\~\\
+
+         Dizemos isso baseados na comparação dos problemas feitos por mais alunos com os problemas feitos por menos alunos. Separando os problemas em 5 conjuntos distintos (baseados no número de alunos que fez cada problema) e rodando os dois algoritmos, vemos que, no inicio, a média simples produz melhores resultados. Conforme o número de alunos aumenta, isso se inverte.
+
+
+         \subsubsection{Comparação}
+         \begin{center} 
+         \begin{tabular}{ l | c  }
+           ponderação  &  média \\
+           \hline
+           0.3718 & 0.3708 \\
+           0.3264 & 0.3256 \\
+           0.3643 & 0.3651 \\
+           0.3534 & 0.3536 \\
+           0.3622 & 0.3637 \\
+         \end{tabular}
+         \end{center}
+
+      \end{subsection}
+      \begin{subsection}{Refinamento do algoritmo}
+         \subsubsection{Refinamentos já realizados}
+            \begin{itemize} 
+            \item Trocar a correlação pela "distância cosseno"
+            \item Distância cosseno com medida de relevância
+            \item Considerar o número de problemas próximo entre dois alunos como indicador de sua proximidade
+            \end{itemize}
+
+
+         \subsubsection{Refinamentos futuros}
+            \begin{itemize}
+            \item Verificar se de fato o algoritmo melhora (e se afasta da média) com mais dados. Para isso, podemos usar um dataset maior, ou usar correlações entre problemas.
+            \item Implementar outras medidas de relevância dos passos
+            \end{itemize}
+      \end{subsection}
+   \end{section}
+
+   \begin{section}{Mais informações}
+      \subsection{Mais informações}
+      Os dados da competição estão todos disponíveis em https://pslcdatashop.web.cmu.edu/KDDCup/ \\~\\
+
+      Lá, se encontram papers de alguns competidores, os dados que foram utilizados nesse trabalho e ainda há a possibilidade de submeter suas estimativas (e ser avaliado como os participantes da competição foram).
+      \\~\\
+   \end{section}
+\end{document}
+
